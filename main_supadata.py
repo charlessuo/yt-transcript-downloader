@@ -1,8 +1,8 @@
 import json
 import os
 import re
+import time
 from datetime import datetime
-from youtube_transcript_api import YouTubeTranscriptApi
 import requests
 from dotenv import load_dotenv
 
@@ -51,55 +51,12 @@ def generate_filename(published_time, creator_name, video_id):
     return f"{date_str}_{creator_str}_{video_id}.txt"
 
 
-def download_transcript(video_id, output_filename, native_lang=None):
-    """Download transcript for a given video ID using YouTube Transcript API.
-
-    Returns:
-        tuple: (success: bool, error_message: str|None, caption_enabled: bool)
-    """
-    try:
-        # Create API instance
-        ytt_api = YouTubeTranscriptApi()
-
-        # Try to get transcript in native language if specified
-        if native_lang:
-            try:
-                transcript_list = ytt_api.list(video_id)
-                transcript = transcript_list.find_transcript([native_lang])
-                transcript_data = transcript.fetch()
-            except Exception:
-                # Fallback to any available transcript
-                transcript_data = ytt_api.fetch(video_id)
-        else:
-            transcript_data = ytt_api.fetch(video_id)
-
-        # Write transcript to file
-        try:
-            with open(output_filename, 'w', encoding='utf-8') as f:
-                for entry in transcript_data:
-                    text = entry['text']
-                    start_time = entry['start']
-                    duration = entry['duration']
-                    f.write(f"[{start_time:.2f}s - {start_time + duration:.2f}s] {text}\n")
-        except IOError as e:
-            return False, f"Failed to write file: {str(e)}", False
-
-        return True, None, True
-    except Exception as e:
-        error_message = str(e)
-        # Check if error is due to disabled subtitles
-        caption_disabled = "Subtitles are disabled" in error_message
-        return False, error_message, not caption_disabled
-
-
 def download_transcript_via_supadata(video_id, output_filename, native_lang=None):
-    """Download transcript using Supadata API as fallback.
+    """Download transcript using Supadata API.
 
     Returns:
         tuple: (success: bool, error_message: str|None)
     """
-    import time
-
     api_key = os.getenv("SUPADATA_API_KEY")
 
     if not api_key:
@@ -211,10 +168,11 @@ def download_transcript_via_supadata(video_id, output_filename, native_lang=None
 
 def main():
     """
-    Main function to download YouTube transcripts.
+    Download YouTube transcripts using Supadata API.
 
-    Reads content_resources.json, downloads transcripts for each video,
-    and updates the JSON with download status.
+    Only processes videos where:
+    - caption_enabled is False (no YouTube captions available)
+    - downloaded_via_supadata is False (not yet downloaded via Supadata)
     """
     # Create output directory if it doesn't exist
     output_dir = "transcripts"
@@ -229,6 +187,7 @@ def main():
     successful_downloads = 0
     failed_downloads = 0
     already_downloaded = 0
+    skipped_has_captions = 0
 
     # Process each content creator
     for resource in data['content_resources']:
@@ -246,32 +205,41 @@ def main():
         print(f"{'='*60}")
 
         for video in content_collection:
-            total_videos += 1
             video_id = video['video_id']
             video_title = video['video_title']
             published_time = video['published_time']
+
+            # Check if video has captions enabled
+            if video.get('caption_enabled', True):
+                # Skip videos that have captions (should use native API)
+                skipped_has_captions += 1
+                continue
+
+            # Check if already downloaded via Supadata
+            if video.get('downloaded_via_supadata', False):
+                filename = generate_filename(published_time, creator_name, video_id)
+                output_path = os.path.join(output_dir, filename)
+                if os.path.exists(output_path):
+                    print(f"✓ Already downloaded: {video_title}")
+                    already_downloaded += 1
+                    continue
+
+            total_videos += 1
 
             # Generate filename
             filename = generate_filename(published_time, creator_name, video_id)
             output_path = os.path.join(output_dir, filename)
 
-            # Check if already downloaded via native API
-            if video.get('downloaded_via_native_api', False) and os.path.exists(output_path):
-                print(f"✓ Already downloaded: {video_title}")
-                already_downloaded += 1
-                continue
-
-            # Download transcript using YouTube Transcript API
+            # Download transcript using Supadata
             print(f"Downloading: {video_title}")
             print(f"  Video ID: {video_id}")
             print(f"  Filename: {filename}")
 
-            success, error, caption_enabled = download_transcript(video_id, output_path, native_lang)
+            success, error = download_transcript_via_supadata(video_id, output_path, native_lang)
 
             if success:
                 print(f"  ✓ Success")
-                video['downloaded_via_native_api'] = True
-                video['caption_enabled'] = True
+                video['downloaded_via_supadata'] = True
                 try:
                     save_content_resources(data)
                 except Exception as e:
@@ -279,8 +247,7 @@ def main():
                 successful_downloads += 1
             else:
                 print(f"  ✗ Failed: {error}")
-                video['downloaded_via_native_api'] = False
-                video['caption_enabled'] = caption_enabled
+                video['downloaded_via_supadata'] = False
                 try:
                     save_content_resources(data)
                 except Exception as e:
@@ -289,9 +256,10 @@ def main():
 
     # Print summary
     print(f"\n{'='*60}")
-    print(f"SUMMARY")
+    print(f"SUMMARY (Supadata API)")
     print(f"{'='*60}")
-    print(f"Total videos: {total_videos}")
+    print(f"Videos without captions: {total_videos + already_downloaded}")
+    print(f"Videos with captions (skipped): {skipped_has_captions}")
     print(f"Already downloaded (skipped): {already_downloaded}")
     print(f"Successful downloads: {successful_downloads}")
     print(f"Failed downloads: {failed_downloads}")

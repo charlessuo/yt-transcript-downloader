@@ -219,21 +219,23 @@ class TestTranscriptDownload:
             output_file = os.path.join(temp_dir, "test_transcript.txt")
 
             # This will likely fail for most test video IDs, but we can test the error handling
-            success, error = download_transcript("invalid_video_id", output_file)
+            success, error, caption_enabled = download_transcript("invalid_video_id", output_file)
 
             # We expect this to fail with an invalid video ID
             assert success == False
             assert error is not None
+            assert isinstance(caption_enabled, bool)
 
     def test_download_transcript_invalid_video_id(self):
         """Test error handling with invalid video ID."""
         with tempfile.TemporaryDirectory() as temp_dir:
             output_file = os.path.join(temp_dir, "test_transcript.txt")
-            success, error = download_transcript("", output_file)
+            success, error, caption_enabled = download_transcript("", output_file)
 
             assert success == False
             assert error is not None
             assert isinstance(error, str)
+            assert isinstance(caption_enabled, bool)
 
 
 class TestIntegration:

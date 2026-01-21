@@ -3,7 +3,6 @@ import os
 import re
 from datetime import datetime
 from youtube_transcript_api import YouTubeTranscriptApi
-import requests
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -90,123 +89,6 @@ def download_transcript(video_id, output_filename, native_lang=None):
         # Check if error is due to disabled subtitles
         caption_disabled = "Subtitles are disabled" in error_message
         return False, error_message, not caption_disabled
-
-
-def download_transcript_via_supadata(video_id, output_filename, native_lang=None):
-    """Download transcript using Supadata API as fallback.
-
-    Returns:
-        tuple: (success: bool, error_message: str|None)
-    """
-    import time
-
-    api_key = os.getenv("SUPADATA_API_KEY")
-
-    if not api_key:
-        return False, "SUPADATA_API_KEY not found in .env file"
-
-    try:
-        # Build API request using full YouTube URL
-        url = "https://api.supadata.ai/v1/transcript"
-        headers = {
-            "x-api-key": api_key,
-            "Content-Type": "application/json"
-        }
-        params = {
-            "url": f"https://www.youtube.com/watch?v={video_id}",
-            "text": "true"
-        }
-
-        # Add language parameter if specified
-        if native_lang:
-            params["lang"] = native_lang
-
-        # Make API request
-        response = requests.get(url, headers=headers, params=params, timeout=30)
-
-        # Handle immediate response (HTTP 200)
-        if response.status_code == 200:
-            transcript_text = response.text
-
-            # Write transcript to file
-            try:
-                with open(output_filename, 'w', encoding='utf-8') as f:
-                    f.write(transcript_text)
-            except IOError as e:
-                return False, f"Failed to write file: {str(e)}"
-
-            return True, None
-
-        # Handle job queued (HTTP 202)
-        elif response.status_code == 202:
-            try:
-                job_data = response.json()
-                job_id = job_data.get("jobId")
-
-                if not job_id:
-                    return False, "Received 202 but no jobId in response"
-
-                print(f"    Job queued: {job_id}. Polling for results...")
-
-                # Poll for job completion (max 90 seconds with 3-second intervals)
-                max_attempts = 30
-                poll_interval = 3
-
-                for attempt in range(max_attempts):
-                    time.sleep(poll_interval)
-
-                    # Check job status
-                    job_url = f"https://api.supadata.ai/v1/transcript/{job_id}"
-                    job_response = requests.get(job_url, headers=headers, timeout=30)
-
-                    if job_response.status_code != 200:
-                        continue
-
-                    job_result = job_response.json()
-                    status = job_result.get("status")
-
-                    print(f"    Job status: {status} (attempt {attempt + 1}/{max_attempts})")
-
-                    if status == "completed":
-                        content = job_result.get("content")
-                        if not content:
-                            return False, "Job completed but no content in response"
-
-                        # Write transcript to file
-                        try:
-                            with open(output_filename, 'w', encoding='utf-8') as f:
-                                # Handle both plain text (str) and structured data (list)
-                                if isinstance(content, str):
-                                    f.write(content)
-                                elif isinstance(content, list):
-                                    # Structured format with timestamps
-                                    for entry in content:
-                                        text = entry.get("text", "")
-                                        f.write(f"{text}\n")
-                                else:
-                                    return False, f"Unexpected content type: {type(content)}"
-                        except IOError as e:
-                            return False, f"Failed to write file: {str(e)}"
-
-                        return True, None
-
-                    elif status == "failed":
-                        return False, "Supadata job failed"
-
-                    # Continue polling for "queued" or "active"
-
-                return False, "Job timed out after 90 seconds"
-
-            except Exception as e:
-                return False, f"Error polling job: {str(e)}"
-
-        else:
-            return False, f"Supadata API error: {response.status_code} - {response.text}"
-
-    except requests.exceptions.RequestException as e:
-        return False, f"Network error: {str(e)}"
-    except Exception as e:
-        return False, f"Unexpected error: {str(e)}"
 
 
 def main():

@@ -30,6 +30,7 @@ dist/
 
 # Project specific
 content_resources.json
+transcripts/
 
 # Testing
 .pytest_cache/

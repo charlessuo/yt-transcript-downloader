@@ -85,6 +85,10 @@ def download_transcript_via_supadata(video_id, output_filename, native_lang=None
         if response.status_code == 200:
             transcript_text = response.text
 
+            # Validate response content
+            if not transcript_text or not transcript_text.strip():
+                return False, "Received empty response from Supadata API"
+
             # Write transcript to file
             try:
                 with open(output_filename, 'w', encoding='utf-8') as f:

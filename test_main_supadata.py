@@ -239,6 +239,44 @@ class TestSupadataDownload:
 
     @patch('main_supadata.requests.get')
     @patch('main_supadata.os.getenv')
+    def test_download_transcript_via_supadata_empty_response(self, mock_getenv, mock_requests_get):
+        """Test handling of empty HTTP 200 response."""
+        mock_getenv.return_value = "test_api_key"
+
+        # Mock empty response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = ""
+        mock_requests_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = os.path.join(temp_dir, "test_transcript.txt")
+            success, error = download_transcript_via_supadata("test_video_id", output_file)
+
+            assert success == False
+            assert "empty response" in error.lower()
+
+    @patch('main_supadata.requests.get')
+    @patch('main_supadata.os.getenv')
+    def test_download_transcript_via_supadata_whitespace_only_response(self, mock_getenv, mock_requests_get):
+        """Test handling of whitespace-only HTTP 200 response."""
+        mock_getenv.return_value = "test_api_key"
+
+        # Mock whitespace-only response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = "   \n\t  "
+        mock_requests_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = os.path.join(temp_dir, "test_transcript.txt")
+            success, error = download_transcript_via_supadata("test_video_id", output_file)
+
+            assert success == False
+            assert "empty response" in error.lower()
+
+    @patch('main_supadata.requests.get')
+    @patch('main_supadata.os.getenv')
     @patch('main_supadata.time.sleep')
     def test_download_transcript_via_supadata_job_timeout(self, mock_sleep, mock_getenv, mock_requests_get):
         """Test that job polling times out after max attempts."""

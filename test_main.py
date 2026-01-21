@@ -224,7 +224,8 @@ class TestTranscriptDownload:
             # We expect this to fail with an invalid video ID
             assert success == False
             assert error is not None
-            assert isinstance(caption_enabled, bool)
+            # caption_enabled can be bool or None (None for unknown status)
+            assert caption_enabled is None or isinstance(caption_enabled, bool)
 
     def test_download_transcript_invalid_video_id(self):
         """Test error handling with invalid video ID."""
@@ -235,7 +236,8 @@ class TestTranscriptDownload:
             assert success == False
             assert error is not None
             assert isinstance(error, str)
-            assert isinstance(caption_enabled, bool)
+            # caption_enabled can be bool or None (None for unknown status)
+            assert caption_enabled is None or isinstance(caption_enabled, bool)
 
 
 class TestIntegration:

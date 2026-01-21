@@ -54,7 +54,8 @@ def download_transcript(video_id, output_filename, native_lang=None):
     """Download transcript for a given video ID using YouTube Transcript API.
 
     Returns:
-        tuple: (success: bool, error_message: str|None, caption_enabled: bool)
+        tuple: (success: bool, error_message: str|None, caption_enabled: bool|None)
+              caption_enabled is True if captions exist, False if disabled, None if unknown
     """
     try:
         # Create API instance
@@ -81,14 +82,18 @@ def download_transcript(video_id, output_filename, native_lang=None):
                     duration = entry['duration']
                     f.write(f"[{start_time:.2f}s - {start_time + duration:.2f}s] {text}\n")
         except IOError as e:
-            return False, f"Failed to write file: {str(e)}", False
+            # Transcript was successfully fetched, so captions ARE enabled
+            # The failure is a local file system issue
+            return False, f"Failed to write file: {str(e)}", True
 
         return True, None, True
     except Exception as e:
         error_message = str(e)
         # Check if error is due to disabled subtitles
         caption_disabled = "Subtitles are disabled" in error_message
-        return False, error_message, not caption_disabled
+        # For non-caption errors, return None to indicate unknown status
+        caption_status = False if caption_disabled else None
+        return False, error_message, caption_status
 
 
 def main():
@@ -162,7 +167,9 @@ def main():
             else:
                 print(f"  ✗ Failed: {error}")
                 video['downloaded_via_native_api'] = False
-                video['caption_enabled'] = caption_enabled
+                # Only set caption_enabled if we have a definitive value (not None)
+                if caption_enabled is not None:
+                    video['caption_enabled'] = caption_enabled
                 try:
                     save_content_resources(data)
                 except Exception as e:

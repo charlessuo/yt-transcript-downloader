@@ -89,8 +89,11 @@ def download_transcript_via_supadata(video_id, output_filename, native_lang=None
                 if isinstance(json_response, dict) and "content" in json_response:
                     # Extract content from JSON response
                     transcript_text = json_response["content"]
-                    # Strip spaces from content
-                    transcript_text = transcript_text.replace(" ", "")
+                    # Strip spaces only for CJK languages (Chinese, Japanese, Korean)
+                    # These languages don't use spaces between words
+                    lang = json_response.get("lang", "")
+                    if lang in ("zh", "ja", "ko"):
+                        transcript_text = transcript_text.replace(" ", "")
                 else:
                     # Unexpected JSON format
                     transcript_text = response.text

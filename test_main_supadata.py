@@ -277,8 +277,8 @@ class TestSupadataDownload:
 
     @patch('main_supadata.requests.get')
     @patch('main_supadata.os.getenv')
-    def test_download_transcript_via_supadata_json_response_format(self, mock_getenv, mock_requests_get):
-        """Test handling of JSON response format from Supadata API."""
+    def test_download_transcript_via_supadata_json_response_format_chinese(self, mock_getenv, mock_requests_get):
+        """Test handling of JSON response format from Supadata API for Chinese content."""
         mock_getenv.return_value = "test_api_key"
 
         # Mock JSON response (API sometimes returns JSON even with text=true)
@@ -299,12 +299,43 @@ class TestSupadataDownload:
             assert success == True
             assert error is None
 
-            # Verify file content has spaces stripped
+            # Verify file content has spaces stripped for Chinese
             with open(output_file, 'r', encoding='utf-8') as f:
                 content = f.read()
-            # Spaces should be removed
+            # Spaces should be removed for Chinese
             assert " " not in content
             assert "那今天这个视频呢就跟大家聊到这个地方了谢谢大家收看我们下期再见拜拜" in content
+
+    @patch('main_supadata.requests.get')
+    @patch('main_supadata.os.getenv')
+    def test_download_transcript_via_supadata_json_response_format_english(self, mock_getenv, mock_requests_get):
+        """Test handling of JSON response format from Supadata API for English content."""
+        mock_getenv.return_value = "test_api_key"
+
+        # Mock JSON response for English content
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '{"lang":"en","availableLangs":["en"],"content":"Hello world how are you today"}'
+        mock_response.json.return_value = {
+            "lang": "en",
+            "availableLangs": ["en"],
+            "content": "Hello world how are you today"
+        }
+        mock_requests_get.return_value = mock_response
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = os.path.join(temp_dir, "test_transcript.txt")
+            success, error = download_transcript_via_supadata("test_video_id", output_file)
+
+            assert success == True
+            assert error is None
+
+            # Verify file content PRESERVES spaces for English
+            with open(output_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            # Spaces should be preserved for English
+            assert content == "Hello world how are you today"
+            assert " " in content  # Spaces must be present
 
     @patch('main_supadata.requests.get')
     @patch('main_supadata.os.getenv')

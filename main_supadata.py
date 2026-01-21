@@ -83,7 +83,20 @@ def download_transcript_via_supadata(video_id, output_filename, native_lang=None
 
         # Handle immediate response (HTTP 200)
         if response.status_code == 200:
-            transcript_text = response.text
+            # Try to parse as JSON first (API sometimes returns JSON even with text=true)
+            try:
+                json_response = response.json()
+                if isinstance(json_response, dict) and "content" in json_response:
+                    # Extract content from JSON response
+                    transcript_text = json_response["content"]
+                    # Strip spaces from content
+                    transcript_text = transcript_text.replace(" ", "")
+                else:
+                    # Unexpected JSON format
+                    transcript_text = response.text
+            except (ValueError, json.JSONDecodeError):
+                # Not JSON, treat as plain text
+                transcript_text = response.text
 
             # Validate response content
             if not transcript_text or not transcript_text.strip():

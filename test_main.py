@@ -33,6 +33,23 @@ class TestDateFormatting:
         """Test date formatting with leap year date."""
         assert format_date("02-29-2024") == "02292024"
 
+    def test_format_date_invalid_format(self):
+        """Test that invalid date format raises ValueError with helpful message."""
+        with pytest.raises(ValueError) as exc_info:
+            format_date("2025-12-19")  # Wrong format (YYYY-MM-DD instead of MM-DD-YYYY)
+        assert "Invalid date format" in str(exc_info.value)
+        assert "expected MM-DD-YYYY" in str(exc_info.value)
+
+    def test_format_date_invalid_date(self):
+        """Test that invalid date raises ValueError."""
+        with pytest.raises(ValueError):
+            format_date("13-01-2025")  # Invalid month
+
+    def test_format_date_non_existent_date(self):
+        """Test that non-existent date raises ValueError."""
+        with pytest.raises(ValueError):
+            format_date("02-30-2025")  # February 30th doesn't exist
+
 
 class TestCreatorNameSanitization:
     """Tests for content creator name sanitization."""
@@ -52,6 +69,36 @@ class TestCreatorNameSanitization:
     def test_sanitize_creator_name_chinese_characters(self):
         """Test Chinese characters with spaces."""
         assert sanitize_creator_name("海伦子Hellen") == "海伦子Hellen"
+
+    def test_sanitize_creator_name_invalid_windows_characters(self):
+        """Test removal of invalid Windows filename characters."""
+        assert sanitize_creator_name("Creator:Name") == "CreatorName"
+        assert sanitize_creator_name("Creator/Name") == "CreatorName"
+        assert sanitize_creator_name("Creator\\Name") == "CreatorName"
+        assert sanitize_creator_name("Creator|Name") == "CreatorName"
+        assert sanitize_creator_name("Creator?Name") == "CreatorName"
+        assert sanitize_creator_name("Creator*Name") == "CreatorName"
+        assert sanitize_creator_name('Creator"Name') == "CreatorName"
+        assert sanitize_creator_name("Creator<Name>") == "CreatorName"
+
+    def test_sanitize_creator_name_leading_trailing_periods(self):
+        """Test removal of leading/trailing periods and spaces."""
+        assert sanitize_creator_name("...Creator Name...") == "Creator_Name"
+        assert sanitize_creator_name("  Creator Name  ") == "Creator_Name"
+
+    def test_sanitize_creator_name_control_characters(self):
+        """Test removal of control characters."""
+        assert sanitize_creator_name("Creator\x00Name") == "CreatorName"
+        assert sanitize_creator_name("Creator\x1fName") == "CreatorName"
+
+    def test_sanitize_creator_name_empty_result(self):
+        """Test that empty result after sanitization returns 'Unknown'."""
+        assert sanitize_creator_name(":::") == "Unknown"
+        assert sanitize_creator_name("...") == "Unknown"
+
+    def test_sanitize_creator_name_complex_mixed(self):
+        """Test complex mixed case with special characters and Chinese."""
+        assert sanitize_creator_name("Creator: 海伦子?") == "Creator_海伦子"
 
 
 class TestFilenameGeneration:

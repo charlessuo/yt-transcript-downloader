@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -18,13 +19,24 @@ def save_content_resources(data, file_path="content_resources.json"):
 
 def format_date(published_time):
     """Convert MM-DD-YYYY to MMDDYYYY format (US style)."""
-    date_obj = datetime.strptime(published_time, "%m-%d-%Y")
-    return date_obj.strftime("%m%d%Y")
+    try:
+        date_obj = datetime.strptime(published_time, "%m-%d-%Y")
+        return date_obj.strftime("%m%d%Y")
+    except ValueError as e:
+        raise ValueError(f"Invalid date format '{published_time}': expected MM-DD-YYYY") from e
 
 
 def sanitize_creator_name(creator_name):
-    """Replace spaces with underscores in creator name."""
-    return creator_name.replace(" ", "_")
+    """Replace spaces and remove invalid filename characters."""
+    # First, strip leading/trailing spaces and periods
+    name = creator_name.strip('. ')
+    # Replace internal spaces with underscores
+    name = name.replace(" ", "_")
+    # Remove invalid filename characters (Windows + Unix)
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', name)
+    # Final cleanup: remove any remaining leading/trailing periods or underscores
+    name = name.strip('._')
+    return name if name else "Unknown"
 
 
 def generate_filename(published_time, creator_name, video_id):
@@ -43,19 +55,22 @@ def download_transcript(video_id, output_filename, native_lang=None):
                 transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
                 transcript = transcript_list.find_transcript([native_lang])
                 transcript_data = transcript.fetch()
-            except:
+            except Exception:
                 # Fallback to any available transcript
                 transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
         else:
             transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
 
         # Write transcript to file
-        with open(output_filename, 'w', encoding='utf-8') as f:
-            for entry in transcript_data:
-                text = entry['text']
-                start_time = entry['start']
-                duration = entry['duration']
-                f.write(f"[{start_time:.2f}s - {start_time + duration:.2f}s] {text}\n")
+        try:
+            with open(output_filename, 'w', encoding='utf-8') as f:
+                for entry in transcript_data:
+                    text = entry['text']
+                    start_time = entry['start']
+                    duration = entry['duration']
+                    f.write(f"[{start_time:.2f}s - {start_time + duration:.2f}s] {text}\n")
+        except IOError as e:
+            return False, f"Failed to write file: {str(e)}"
 
         return True, None
     except Exception as e:
@@ -63,6 +78,12 @@ def download_transcript(video_id, output_filename, native_lang=None):
 
 
 def main():
+    """
+    Main function to download YouTube transcripts.
+
+    Reads content_resources.json, downloads transcripts for each video,
+    and updates the JSON with download status.
+    """
     # Create output directory if it doesn't exist
     output_dir = "transcripts"
     os.makedirs(output_dir, exist_ok=True)
@@ -98,15 +119,15 @@ def main():
             video_title = video['video_title']
             published_time = video['published_time']
 
-            # Check if already downloaded (from JSON flag)
-            if video.get('downloaded', False):
-                print(f"✓ Already downloaded (marked in JSON): {video_title}")
-                already_downloaded += 1
-                continue
-
             # Generate filename
             filename = generate_filename(published_time, creator_name, video_id)
             output_path = os.path.join(output_dir, filename)
+
+            # Check if already downloaded (from JSON flag and file existence)
+            if video.get('downloaded', False) and os.path.exists(output_path):
+                print(f"✓ Already downloaded: {video_title}")
+                already_downloaded += 1
+                continue
 
             # Download transcript
             print(f"Downloading: {video_title}")
@@ -119,7 +140,10 @@ def main():
                 print(f"  ✓ Success")
                 # Update JSON to mark as downloaded
                 video['downloaded'] = True
-                save_content_resources(data)
+                try:
+                    save_content_resources(data)
+                except Exception as e:
+                    print(f"  ⚠️  Warning: Failed to update JSON: {e}")
                 successful_downloads += 1
             else:
                 print(f"  ✗ Failed: {error}")

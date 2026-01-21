@@ -1,10 +1,13 @@
 # YouTube Transcript Downloader
 
-A Python project for downloading YouTube transcripts.
+A Python project for downloading YouTube transcripts using two different approaches:
+1. **Native API** (YouTube Transcript API) - Free, works with videos that have captions enabled
+2. **Supadata API** - Paid service, can generate transcripts for videos without captions
 
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/) - Fast Python package manager
+- (Optional) [Supadata API Key](https://supadata.ai/) - Required for downloading videos without captions
 
 ### Installing uv
 
@@ -29,13 +32,53 @@ uv sync
 
 This will create a virtual environment and install all dependencies from `pyproject.toml`.
 
-### 2. Run the Application
+### 2. Configure Supadata API Key (Optional - Only for videos without captions)
+
+If you want to use the Supadata API for videos without captions:
+
+1. Get your API key from [Supadata](https://supadata.ai/)
+2. Create a `.env` file in the project root
+3. Add your API key:
+
+```bash
+SUPADATA_API_KEY=your_api_key_here
+```
+
+### 3. Run the Application
+
+#### Approach 1: Native API (YouTube Transcript API) - Start Here
+
+Always run this first. Downloads transcripts using YouTube's native API for videos with captions enabled.
 
 ```bash
 uv run main.py
 ```
 
-### 3. Using the Virtual Environment
+**Updates JSON flags:**
+- `downloaded_via_native_api`: `true` if successful
+- `caption_enabled`: `true` if captions exist, `false` if not
+
+#### Approach 2: Supadata API (Optional - Only for videos without captions)
+
+**Only run this if you have videos where:**
+- `caption_enabled` is `false` (no YouTube captions available)
+- `downloaded_via_supadata` is `false` (not yet downloaded via Supadata)
+
+This approach uses AI to generate transcripts for videos without captions (requires paid API key).
+
+```bash
+uv run main_supadata.py
+```
+
+**Updates JSON flags:**
+- `downloaded_via_supadata`: `true` if successful
+
+**Recommended Workflow:**
+1. Run `uv run main.py` first (native API - free)
+2. Check which videos failed due to `caption_enabled: false`
+3. If needed, run `uv run main_supadata.py` (paid API) to download those specific videos
+
+### 4. Using the Virtual Environment
 
 After running `uv sync`, a virtual environment is created in `.venv` with Python 3.13. You have two options to use it:
 
@@ -68,7 +111,7 @@ python main.py
 deactivate
 ```
 
-### 4. Adding New Dependencies
+### 5. Adding New Dependencies
 
 ```bash
 # Add a regular dependency
@@ -122,3 +165,26 @@ yt-transcript-downloader/
 ## Development
 
 This project uses Python 3.13 and uv for dependency management. The virtual environment is automatically managed by uv.
+
+## JSON Flags
+
+The `content_resources.json` file tracks the following flags for each video:
+
+- `downloaded_via_native_api` (boolean) - `true` if successfully downloaded via YouTube API
+- `downloaded_via_supadata` (boolean) - `true` if successfully downloaded via Supadata API
+- `caption_enabled` (boolean) - `true` if video has YouTube captions, `false` if not
+- `behind_paywall` (boolean) - Video access status
+
+## Two Approaches
+
+### main.py (Native YouTube API)
+- Free
+- Works only with videos that have captions enabled
+- Always run this first
+- Updates: `downloaded_via_native_api` and `caption_enabled`
+
+### main_supadata.py (Supadata AI API)
+- Paid API (requires API key)
+- Generates transcripts for videos without captions
+- Only processes videos where `caption_enabled = false` and `downloaded_via_supadata = false`
+- Updates: `downloaded_via_supadata`

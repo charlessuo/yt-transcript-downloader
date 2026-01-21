@@ -3,6 +3,10 @@ import os
 import re
 from datetime import datetime
 from youtube_transcript_api import YouTubeTranscriptApi
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def load_content_resources(file_path="content_resources.json"):
@@ -47,19 +51,27 @@ def generate_filename(published_time, creator_name, video_id):
 
 
 def download_transcript(video_id, output_filename, native_lang=None):
-    """Download transcript for a given video ID."""
+    """Download transcript for a given video ID using YouTube Transcript API.
+
+    Returns:
+        tuple: (success: bool, error_message: str|None, caption_enabled: bool|None)
+              caption_enabled is True if captions exist, False if disabled, None if unknown
+    """
     try:
+        # Create API instance
+        ytt_api = YouTubeTranscriptApi()
+
         # Try to get transcript in native language if specified
         if native_lang:
             try:
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                transcript_list = ytt_api.list(video_id)
                 transcript = transcript_list.find_transcript([native_lang])
                 transcript_data = transcript.fetch()
             except Exception:
                 # Fallback to any available transcript
-                transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+                transcript_data = ytt_api.fetch(video_id)
         else:
-            transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+            transcript_data = ytt_api.fetch(video_id)
 
         # Write transcript to file
         try:
@@ -70,11 +82,18 @@ def download_transcript(video_id, output_filename, native_lang=None):
                     duration = entry['duration']
                     f.write(f"[{start_time:.2f}s - {start_time + duration:.2f}s] {text}\n")
         except IOError as e:
-            return False, f"Failed to write file: {str(e)}"
+            # Transcript was successfully fetched, so captions ARE enabled
+            # The failure is a local file system issue
+            return False, f"Failed to write file: {str(e)}", True
 
-        return True, None
+        return True, None, True
     except Exception as e:
-        return False, str(e)
+        error_message = str(e)
+        # Check if error is due to disabled subtitles
+        caption_disabled = "Subtitles are disabled" in error_message
+        # For non-caption errors, return None to indicate unknown status
+        caption_status = False if caption_disabled else None
+        return False, error_message, caption_status
 
 
 def main():
@@ -123,23 +142,23 @@ def main():
             filename = generate_filename(published_time, creator_name, video_id)
             output_path = os.path.join(output_dir, filename)
 
-            # Check if already downloaded (from JSON flag and file existence)
-            if video.get('downloaded', False) and os.path.exists(output_path):
+            # Check if already downloaded via native API
+            if video.get('downloaded_via_native_api', False) and os.path.exists(output_path):
                 print(f"✓ Already downloaded: {video_title}")
                 already_downloaded += 1
                 continue
 
-            # Download transcript
+            # Download transcript using YouTube Transcript API
             print(f"Downloading: {video_title}")
             print(f"  Video ID: {video_id}")
             print(f"  Filename: {filename}")
 
-            success, error = download_transcript(video_id, output_path, native_lang)
+            success, error, caption_enabled = download_transcript(video_id, output_path, native_lang)
 
             if success:
                 print(f"  ✓ Success")
-                # Update JSON to mark as downloaded
-                video['downloaded'] = True
+                video['downloaded_via_native_api'] = True
+                video['caption_enabled'] = True
                 try:
                     save_content_resources(data)
                 except Exception as e:
@@ -147,7 +166,14 @@ def main():
                 successful_downloads += 1
             else:
                 print(f"  ✗ Failed: {error}")
-                video['downloaded'] = False
+                video['downloaded_via_native_api'] = False
+                # Only set caption_enabled if we have a definitive value (not None)
+                if caption_enabled is not None:
+                    video['caption_enabled'] = caption_enabled
+                try:
+                    save_content_resources(data)
+                except Exception as e:
+                    print(f"  ⚠️  Warning: Failed to update JSON: {e}")
                 failed_downloads += 1
 
     # Print summary

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import argparse
 from datetime import datetime
 from youtube_transcript_api import YouTubeTranscriptApi
 from dotenv import load_dotenv
@@ -96,6 +97,52 @@ def download_transcript(video_id, output_filename, native_lang=None):
         return False, error_message, caption_status
 
 
+def download_single_video(video_id, output_dir="transcripts", creator_name=None,
+                         published_time=None, native_lang=None, video_title=None):
+    """Download a single YouTube video transcript on-demand.
+
+    Args:
+        video_id: YouTube video ID (e.g., 'dQw4w9WgXcQ')
+        output_dir: Directory to save transcript (default: 'transcripts')
+        creator_name: Optional creator name for filename (default: 'YouTube')
+        published_time: Optional publish date in MM-DD-YYYY format (default: today's date)
+        native_lang: Optional native language code (e.g., 'zh', 'en')
+        video_title: Optional video title for display
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Set defaults
+    if creator_name is None:
+        creator_name = "YouTube"
+    if published_time is None:
+        published_time = datetime.now().strftime("%m-%d-%Y")
+    if video_title is None:
+        video_title = f"Video {video_id}"
+
+    # Generate filename
+    filename = generate_filename(published_time, creator_name, video_id)
+    output_path = os.path.join(output_dir, filename)
+
+    # Download transcript
+    print(f"Downloading: {video_title}")
+    print(f"  Video ID: {video_id}")
+    print(f"  Filename: {filename}")
+
+    success, error, caption_enabled = download_transcript(video_id, output_path, native_lang)
+
+    if success:
+        print(f"  ✓ Success")
+        print(f"\nTranscript saved to: {output_path}")
+        return True
+    else:
+        print(f"  ✗ Failed: {error}")
+        return False
+
+
 def main():
     """
     Main function to download YouTube transcripts.
@@ -188,4 +235,70 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Download YouTube video transcripts",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Download all videos from content_resources.json
+  python main.py
+
+  # Download a single video (minimal)
+  python main.py --video-id dQw4w9WgXcQ
+
+  # Download with custom options
+  python main.py --video-id dQw4w9WgXcQ --creator "Rick Astley" --lang en --date 10-25-1987
+
+  # Download to custom directory
+  python main.py --video-id dQw4w9WgXcQ --output-dir my_transcripts
+        """
+    )
+
+    parser.add_argument(
+        '--video-id',
+        type=str,
+        help='YouTube video ID to download (e.g., dQw4w9WgXcQ). If provided, downloads single video instead of batch.'
+    )
+    parser.add_argument(
+        '--creator',
+        type=str,
+        help='Content creator name (default: "YouTube")'
+    )
+    parser.add_argument(
+        '--date',
+        type=str,
+        help='Published date in MM-DD-YYYY format (default: today\'s date)'
+    )
+    parser.add_argument(
+        '--lang',
+        type=str,
+        help='Native language code (e.g., zh, en, ja)'
+    )
+    parser.add_argument(
+        '--title',
+        type=str,
+        help='Video title for display purposes'
+    )
+    parser.add_argument(
+        '--output-dir',
+        type=str,
+        default='transcripts',
+        help='Output directory for transcripts (default: transcripts)'
+    )
+
+    args = parser.parse_args()
+
+    # Single video mode
+    if args.video_id:
+        success = download_single_video(
+            video_id=args.video_id,
+            output_dir=args.output_dir,
+            creator_name=args.creator,
+            published_time=args.date,
+            native_lang=args.lang,
+            video_title=args.title
+        )
+        exit(0 if success else 1)
+    # Batch mode
+    else:
+        main()

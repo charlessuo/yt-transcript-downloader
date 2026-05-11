@@ -64,12 +64,19 @@ def download_transcript(video_id, output_filename, native_lang=None):
 
         # Try to get transcript in native language if specified
         if native_lang:
+            transcript_list = ytt_api.list(video_id)
+            # Try exact match first, then prefix match (e.g. 'zh' matches 'zh-Hans')
+            transcript = None
             try:
-                transcript_list = ytt_api.list(video_id)
                 transcript = transcript_list.find_transcript([native_lang])
-                transcript_data = transcript.fetch()
             except Exception:
-                # Fallback to any available transcript
+                for t in transcript_list:
+                    if t.language_code.startswith(native_lang):
+                        transcript = t
+                        break
+            if transcript is not None:
+                transcript_data = transcript.fetch()
+            else:
                 transcript_data = ytt_api.fetch(video_id)
         else:
             transcript_data = ytt_api.fetch(video_id)

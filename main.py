@@ -78,9 +78,9 @@ def download_transcript(video_id, output_filename, native_lang=None):
         try:
             with open(output_filename, 'w', encoding='utf-8') as f:
                 for entry in transcript_data:
-                    text = entry['text']
-                    start_time = entry['start']
-                    duration = entry['duration']
+                    text = entry.text
+                    start_time = entry.start
+                    duration = entry.duration
                     f.write(f"[{start_time:.2f}s - {start_time + duration:.2f}s] {text}\n")
         except IOError as e:
             # Transcript was successfully fetched, so captions ARE enabled

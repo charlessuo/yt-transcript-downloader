@@ -46,7 +46,40 @@ SUPADATA_API_KEY=your_api_key_here
 
 ### 3. Run the Application
 
-#### Approach 1: Native API (YouTube Transcript API) - Start Here
+#### Option A: Download Individual Videos (On-Demand)
+
+You can download transcripts for individual YouTube videos without adding them to `content_resources.json`:
+
+```bash
+# Basic usage - just provide the video ID
+uv run main.py --video-id dQw4w9WgXcQ
+
+# With custom creator name and language
+uv run main.py --video-id dQw4w9WgXcQ --creator "Rick Astley" --lang en
+
+# With all options
+uv run main.py --video-id dQw4w9WgXcQ --creator "Rick Astley" --lang en --date 10-25-1987 --title "Never Gonna Give You Up"
+
+# Custom output directory
+uv run main.py --video-id dQw4w9WgXcQ --output-dir my_transcripts
+
+# View all available options
+uv run main.py --help
+```
+
+**Command-line Options:**
+- `--video-id`: YouTube video ID (required for single video mode)
+- `--creator`: Content creator name (default: "YouTube")
+- `--date`: Published date in MM-DD-YYYY format (default: today's date)
+- `--lang`: Native language code (e.g., zh, en, ja)
+- `--title`: Video title for display purposes
+- `--output-dir`: Output directory (default: transcripts)
+
+**Note:** Single video downloads do NOT update `content_resources.json`. They're standalone downloads for quick, ad-hoc use.
+
+#### Option B: Batch Processing from JSON
+
+##### Approach 1: Native API (YouTube Transcript API) - Start Here
 
 Always run this first. Downloads transcripts using YouTube's native API for videos with captions enabled.
 
@@ -58,7 +91,7 @@ uv run main.py
 - `downloaded_via_native_api`: `true` if successful
 - `caption_enabled`: `true` if captions exist, `false` if not
 
-#### Approach 2: Supadata API (Optional - Only for videos without captions)
+##### Approach 2: Supadata API (Optional - Only for videos without captions)
 
 **Only run this if you have videos where:**
 - `caption_enabled` is `false` (no YouTube captions available)
@@ -175,16 +208,24 @@ The `content_resources.json` file tracks the following flags for each video:
 - `caption_enabled` (boolean) - `true` if video has YouTube captions, `false` if not
 - `behind_paywall` (boolean) - Video access status
 
-## Two Approaches
+## Usage Modes
 
-### main.py (Native YouTube API)
+### Single Video Mode (main.py with --video-id)
+- Download individual videos on-demand without updating JSON
+- Free (uses YouTube Transcript API)
+- Quick and flexible for ad-hoc downloads
+- Usage: `uv run main.py --video-id <VIDEO_ID>`
+
+### Batch Mode - Native API (main.py without arguments)
 - Free
 - Works only with videos that have captions enabled
-- Always run this first
+- Always run this first for batch processing
 - Updates: `downloaded_via_native_api` and `caption_enabled`
+- Usage: `uv run main.py`
 
-### main_supadata.py (Supadata AI API)
+### Batch Mode - Supadata API (main_supadata.py)
 - Paid API (requires API key)
 - Generates transcripts for videos without captions
 - Only processes videos where `caption_enabled = false` and `downloaded_via_supadata = false`
 - Updates: `downloaded_via_supadata`
+- Usage: `uv run main_supadata.py`

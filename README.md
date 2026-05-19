@@ -86,11 +86,13 @@ uv run main.py --help
 **Supported URL formats for `--video-id`:**
 | Format | Example |
 |--------|---------|
-| Standard watch URL | `https://www.youtube.com/watch?v=dQw4w9WgXcQ` |
-| Short URL | `https://youtu.be/dQw4w9WgXcQ` |
-| Shorts URL | `https://www.youtube.com/shorts/dQw4w9WgXcQ` |
-| Bare video ID | `dQw4w9WgXcQ` |
+| Standard watch URL | `--video-id "https://www.youtube.com/watch?v=dQw4w9WgXcQ"` |
+| Short URL | `--video-id https://youtu.be/dQw4w9WgXcQ` |
+| Shorts URL | `--video-id "https://www.youtube.com/shorts/dQw4w9WgXcQ"` |
+| Bare video ID | `--video-id dQw4w9WgXcQ` |
 | ID starting with `-` | `--video-id=-s9Oj3koBTc` |
+
+> **Shell quoting:** URLs containing `?` (e.g. `watch?v=...`) must be **quoted** in zsh/bash, otherwise the shell expands `?` as a glob wildcard and you get `zsh: no matches found`. Short URLs (`youtu.be/...`) and bare IDs have no `?` and don't need quoting.
 
 **Note:** Single video downloads do NOT update `content_resources.json`. They're standalone downloads for quick, ad-hoc use.
 

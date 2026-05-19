@@ -51,8 +51,16 @@ SUPADATA_API_KEY=your_api_key_here
 You can download transcripts for individual YouTube videos without adding them to `content_resources.json`:
 
 ```bash
-# Basic usage - just provide the video ID
+# Basic usage - provide the video ID
 uv run main.py --video-id dQw4w9WgXcQ
+
+# Video IDs that start with '-': use = to avoid flag ambiguity
+uv run main.py --video-id=-s9Oj3koBTc
+
+# Pass a full YouTube URL instead of just the ID (extra params like &t=15s are ignored)
+uv run main.py --video-id "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=15s"
+uv run main.py --video-id https://youtu.be/dQw4w9WgXcQ
+uv run main.py --video-id "https://www.youtube.com/shorts/dQw4w9WgXcQ"
 
 # With custom creator name and language
 uv run main.py --video-id dQw4w9WgXcQ --creator "Rick Astley" --lang en
@@ -68,12 +76,21 @@ uv run main.py --help
 ```
 
 **Command-line Options:**
-- `--video-id`: YouTube video ID (required for single video mode)
+- `--video-id`: YouTube video ID **or full YouTube URL** (required for single video mode). For IDs starting with `-`, use `--video-id=VALUE`.
 - `--creator`: Content creator name (default: "YouTube")
 - `--date`: Published date in MM-DD-YYYY format (default: today's date)
 - `--lang`: Native language code (e.g., zh, en, ja)
 - `--title`: Video title for display purposes
 - `--output-dir`: Output directory (default: transcripts)
+
+**Supported URL formats for `--video-id`:**
+| Format | Example |
+|--------|---------|
+| Standard watch URL | `https://www.youtube.com/watch?v=dQw4w9WgXcQ` |
+| Short URL | `https://youtu.be/dQw4w9WgXcQ` |
+| Shorts URL | `https://www.youtube.com/shorts/dQw4w9WgXcQ` |
+| Bare video ID | `dQw4w9WgXcQ` |
+| ID starting with `-` | `--video-id=-s9Oj3koBTc` |
 
 **Note:** Single video downloads do NOT update `content_resources.json`. They're standalone downloads for quick, ad-hoc use.
 
@@ -214,7 +231,8 @@ The `content_resources.json` file tracks the following flags for each video:
 - Download individual videos on-demand without updating JSON
 - Free (uses YouTube Transcript API)
 - Quick and flexible for ad-hoc downloads
-- Usage: `uv run main.py --video-id <VIDEO_ID>`
+- Accepts a bare video ID or any YouTube URL; extra params (e.g. `&t=15s`) are stripped automatically
+- Usage: `uv run main.py --video-id <VIDEO_ID_OR_URL>`
 
 ### Batch Mode - Native API (main.py without arguments)
 - Free

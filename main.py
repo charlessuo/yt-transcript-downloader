@@ -3,11 +3,41 @@ import os
 import re
 import argparse
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+
+def extract_video_id(value):
+    """Extract a YouTube video ID from a URL or return the value as-is.
+
+    Handles:
+      https://www.youtube.com/watch?v=VIDEO_ID (strips extra params like &t=15s)
+      https://youtu.be/VIDEO_ID
+      https://www.youtube.com/shorts/VIDEO_ID
+    """
+    parsed = urlparse(value)
+    if parsed.scheme in ('http', 'https'):
+        if parsed.netloc not in ('www.youtube.com', 'youtube.com', 'youtu.be', 'm.youtube.com'):
+            raise argparse.ArgumentTypeError(f"Not a YouTube URL: {value}")
+        if parsed.netloc == 'youtu.be':
+            video_id = parsed.path.lstrip('/')
+        else:
+            qs = parse_qs(parsed.query)
+            if 'v' in qs:
+                video_id = qs['v'][0]
+            else:
+                # Handle /shorts/VIDEO_ID and /embed/VIDEO_ID
+                path_parts = parsed.path.strip('/').split('/')
+                if len(path_parts) >= 2 and path_parts[0] in ('shorts', 'embed'):
+                    video_id = path_parts[1]
+                else:
+                    raise argparse.ArgumentTypeError(f"Could not extract video ID from URL: {value}")
+        return video_id
+    return value
 
 
 def load_content_resources(file_path="content_resources.json"):
@@ -250,8 +280,15 @@ Examples:
   # Download all videos from content_resources.json
   python main.py
 
-  # Download a single video (minimal)
+  # Download a single video by ID
   python main.py --video-id dQw4w9WgXcQ
+
+  # Video ID starting with '-': use = to avoid flag ambiguity
+  python main.py --video-id=-s9Oj3koBTc
+
+  # Download by YouTube URL (extra params like &t=15s are ignored)
+  python main.py --video-id "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=15s"
+  python main.py --video-id https://youtu.be/dQw4w9WgXcQ
 
   # Download with custom options
   python main.py --video-id dQw4w9WgXcQ --creator "Rick Astley" --lang en --date 10-25-1987
@@ -263,8 +300,8 @@ Examples:
 
     parser.add_argument(
         '--video-id',
-        type=str,
-        help='YouTube video ID to download (e.g., dQw4w9WgXcQ). If provided, downloads single video instead of batch.'
+        type=extract_video_id,
+        help='YouTube video ID or URL. For IDs starting with "-", use --video-id=VALUE.'
     )
     parser.add_argument(
         '--creator',

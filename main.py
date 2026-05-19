@@ -286,8 +286,10 @@ Examples:
   # Video ID starting with '-': use = to avoid flag ambiguity
   python main.py --video-id=-s9Oj3koBTc
 
-  # Download by YouTube URL (extra params like &t=15s are ignored)
+  # Download by YouTube URL — QUOTE watch URLs (? is a shell glob in zsh/bash)
+  python main.py --video-id "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   python main.py --video-id "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=15s"
+  python main.py --video-id "https://www.youtube.com/watch?v=-s9Oj3koBTc"
   python main.py --video-id https://youtu.be/dQw4w9WgXcQ
 
   # Download with custom options

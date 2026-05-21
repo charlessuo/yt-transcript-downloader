@@ -112,13 +112,23 @@ def fetch_video_metadata(video_id):
     try:
         page = requests.get(
             f"https://www.youtube.com/watch?v={video_id}",
-            headers={"User-Agent": "Mozilla/5.0"},
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+            },
             timeout=15,
         )
         if page.status_code == 200:
-            m = re.search(r'"publishDate"\s*:\s*"(\d{4}-\d{2}-\d{2})"', page.text)
-            if not m:
-                m = re.search(r'"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2})"', page.text)
+            # YouTube embeds dates as ISO 8601 ("2025-12-19" or "2025-12-19T00:00:00+00:00").
+            # Don't require a closing quote so the timestamp suffix doesn't break the match.
+            m = re.search(
+                r'"(?:publishDate|datePublished|uploadDate)"\s*:\s*"(\d{4}-\d{2}-\d{2})',
+                page.text,
+            )
             if m:
                 y, mo, d = m.group(1).split("-")
                 result["upload_date"] = f"{mo}-{d}-{y}"

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import argparse
+import requests
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -61,6 +62,59 @@ def format_date(published_time):
         raise ValueError(f"Invalid date format '{published_time}': expected MM-DD-YYYY") from e
 
 
+def sanitize_title(title, max_length=None):
+    """Sanitize video title for use in a filename, with dashes as word separators."""
+    t = title.strip()
+    t = t.replace(" ", "-")
+    t = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', t)
+    t = re.sub(r'-+', '-', t)
+    t = t.strip('-')
+    if max_length and len(t) > max_length:
+        t = t[:max_length].rstrip('-')
+    return t if t else "Untitled"
+
+
+def fetch_video_metadata(video_id):
+    """Fetch video title and upload date from YouTube without an API key.
+
+    Returns:
+        dict with optional keys 'title' (str) and 'upload_date' (str, MM-DD-YYYY),
+        or None if nothing could be retrieved.
+    """
+    result = {}
+
+    try:
+        resp = requests.get(
+            "https://www.youtube.com/oembed",
+            params={"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            title = resp.json().get("title")
+            if title:
+                result["title"] = title
+    except Exception:
+        pass
+
+    try:
+        page = requests.get(
+            f"https://www.youtube.com/watch?v={video_id}",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=15,
+        )
+        if page.status_code == 200:
+            m = re.search(r'"publishDate"\s*:\s*"(\d{4}-\d{2}-\d{2})"', page.text)
+            if not m:
+                m = re.search(r'"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2})"', page.text)
+            if m:
+                y, mo, d = m.group(1).split("-")
+                result["upload_date"] = f"{mo}-{d}-{y}"
+    except Exception:
+        pass
+
+    return result if result else None
+
+
 def sanitize_creator_name(creator_name):
     """Replace spaces and remove invalid filename characters."""
     # First, strip leading/trailing spaces and periods
@@ -74,11 +128,18 @@ def sanitize_creator_name(creator_name):
     return name if name else "Unknown"
 
 
-def generate_filename(published_time, creator_name, video_id):
-    """Generate filename in format: MMDDYYYY_CreatorName_VideoID.txt"""
+def generate_filename(published_time, video_id, video_title=None):
+    """Generate filename: MMDDYYYY_VideoID[_Video-Title].txt"""
     date_str = format_date(published_time)
-    creator_str = sanitize_creator_name(creator_name)
-    return f"{date_str}_{creator_str}_{video_id}.txt"
+
+    if video_title:
+        # Reserve chars for fixed parts so total stays under 200 chars.
+        reserved = len(date_str) + 1 + len(video_id) + 1 + len(".txt")
+        max_title_len = max(10, 200 - reserved)
+        title_str = sanitize_title(video_title, max_length=max_title_len)
+        return f"{date_str}_{video_id}_{title_str}.txt"
+
+    return f"{date_str}_{video_id}.txt"
 
 
 def download_transcript(video_id, output_filename, native_lang=None):
@@ -155,13 +216,26 @@ def download_single_video(video_id, output_dir="transcripts", creator_name=None,
     # Set defaults
     if creator_name is None:
         creator_name = "YouTube"
+
+    # Fetch upload date and title from YouTube when not provided by the caller
+    if published_time is None or video_title is None:
+        print(f"  Fetching video metadata...")
+        meta = fetch_video_metadata(video_id)
+        if meta:
+            if published_time is None:
+                published_time = meta.get("upload_date")
+            if video_title is None:
+                video_title = meta.get("title")
+
+    # Fall back to today if the upload date still could not be determined
     if published_time is None:
+        print(f"  Warning: could not fetch upload date, using today's date")
         published_time = datetime.now().strftime("%m-%d-%Y")
     if video_title is None:
         video_title = f"Video {video_id}"
 
     # Generate filename
-    filename = generate_filename(published_time, creator_name, video_id)
+    filename = generate_filename(published_time, video_id, video_title)
     output_path = os.path.join(output_dir, filename)
 
     # Download transcript
@@ -223,7 +297,7 @@ def main():
             published_time = video['published_time']
 
             # Generate filename
-            filename = generate_filename(published_time, creator_name, video_id)
+            filename = generate_filename(published_time, video_id, video_title)
             output_path = os.path.join(output_dir, filename)
 
             # Check if already downloaded via native API

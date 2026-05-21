@@ -6,6 +6,7 @@ from datetime import datetime
 from main import (
     format_date,
     sanitize_creator_name,
+    sanitize_title,
     generate_filename,
     load_content_resources,
     save_content_resources,
@@ -101,23 +102,63 @@ class TestCreatorNameSanitization:
         assert sanitize_creator_name("Creator: 海伦子?") == "Creator_海伦子"
 
 
+class TestTitleSanitization:
+    """Tests for video title sanitization."""
+
+    def test_sanitize_title_spaces_become_dashes(self):
+        assert sanitize_title("My Cool Video") == "My-Cool-Video"
+
+    def test_sanitize_title_removes_invalid_chars(self):
+        assert sanitize_title('Title: "Subtitle"') == "Title-Subtitle"
+
+    def test_sanitize_title_collapses_multiple_dashes(self):
+        assert sanitize_title("A  B") == "A-B"
+
+    def test_sanitize_title_strips_leading_trailing_dashes(self):
+        assert sanitize_title("  Title  ") == "Title"
+
+    def test_sanitize_title_max_length(self):
+        long_title = "A" * 200
+        result = sanitize_title(long_title, max_length=50)
+        assert len(result) <= 50
+
+    def test_sanitize_title_max_length_no_trailing_dash(self):
+        title = "Word " * 20  # "Word Word Word ..." with spaces becoming dashes
+        result = sanitize_title(title, max_length=10)
+        assert not result.endswith("-")
+        assert len(result) <= 10
+
+    def test_sanitize_title_empty_after_sanitization(self):
+        assert sanitize_title(':::') == "Untitled"
+
+    def test_sanitize_title_chinese(self):
+        assert sanitize_title("用最啰嗦的方式去火星") == "用最啰嗦的方式去火星"
+
+
 class TestFilenameGeneration:
     """Tests for filename generation."""
 
     def test_generate_filename_basic(self):
-        """Test basic filename generation."""
-        filename = generate_filename("01-08-2026", "Test Creator", "abc123")
-        assert filename == "01082026_Test_Creator_abc123.txt"
+        """Test filename without title: MMDDYYYY_VideoID.txt"""
+        filename = generate_filename("01-08-2026", "abc123")
+        assert filename == "01082026_abc123.txt"
 
-    def test_generate_filename_chinese_creator(self):
-        """Test filename with Chinese creator name."""
-        filename = generate_filename("12-19-2025", "海伦子Hellen", "inXOHNc_UUo")
-        assert filename == "12192025_海伦子Hellen_inXOHNc_UUo.txt"
+    def test_generate_filename_with_title(self):
+        """Test filename includes sanitized title after video ID."""
+        filename = generate_filename("01-08-2026", "abc123", "My Cool Video")
+        assert filename == "01082026_abc123_My-Cool-Video.txt"
 
-    def test_generate_filename_creator_with_multiple_words(self):
-        """Test filename with multi-word creator name."""
-        filename = generate_filename("06-14-2025", "Money or Life 美股频道", "t7XX6-pon8M")
-        assert filename == "06142025_Money_or_Life_美股频道_t7XX6-pon8M.txt"
+    def test_generate_filename_with_chinese_title(self):
+        """Test filename with Chinese title."""
+        filename = generate_filename("12-19-2025", "inXOHNc_UUo", "上市即巅峰 解析SpaceX的机会")
+        assert filename == "12192025_inXOHNc_UUo_上市即巅峰-解析SpaceX的机会.txt"
+
+    def test_generate_filename_title_truncated_to_fit(self):
+        """Test that a very long title is truncated so total filename stays under 200 chars."""
+        long_title = "Word " * 60  # 300 chars of "Word Word..."
+        filename = generate_filename("01-08-2026", "abc123", long_title)
+        assert len(filename) <= 200
+        assert not filename.endswith("-.txt")
 
 
 class TestJSONOperations:
@@ -244,27 +285,27 @@ class TestIntegration:
     """Integration tests for the full workflow."""
 
     def test_filename_generation_workflow(self):
-        """Test the complete filename generation workflow."""
+        """Test the complete filename generation workflow with and without titles."""
         test_cases = [
             {
                 "published_time": "12-19-2025",
-                "creator_name": "海伦子Hellen",
                 "video_id": "inXOHNc_UUo",
-                "expected": "12192025_海伦子Hellen_inXOHNc_UUo.txt"
+                "video_title": "上市即巅峰 解析SpaceX的机会",
+                "expected": "12192025_inXOHNc_UUo_上市即巅峰-解析SpaceX的机会.txt"
             },
             {
                 "published_time": "06-14-2025",
-                "creator_name": "Money or Life 美股频道",
                 "video_id": "t7XX6-pon8M",
-                "expected": "06142025_Money_or_Life_美股频道_t7XX6-pon8M.txt"
+                "video_title": None,
+                "expected": "06142025_t7XX6-pon8M.txt"
             }
         ]
 
         for case in test_cases:
             result = generate_filename(
                 case["published_time"],
-                case["creator_name"],
-                case["video_id"]
+                case["video_id"],
+                case["video_title"],
             )
             assert result == case["expected"], f"Expected {case['expected']}, got {result}"
 

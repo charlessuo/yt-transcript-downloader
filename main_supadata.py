@@ -31,6 +31,18 @@ def format_date(published_time):
         raise ValueError(f"Invalid date format '{published_time}': expected MM-DD-YYYY") from e
 
 
+def sanitize_title(title, max_length=None):
+    """Sanitize video title for use in a filename, with dashes as word separators."""
+    t = title.strip()
+    t = t.replace(" ", "-")
+    t = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', t)
+    t = re.sub(r'-+', '-', t)
+    t = t.strip('-')
+    if max_length and len(t) > max_length:
+        t = t[:max_length].rstrip('-')
+    return t if t else "Untitled"
+
+
 def sanitize_creator_name(creator_name):
     """Replace spaces and remove invalid filename characters."""
     # First, strip leading/trailing spaces and periods
@@ -44,11 +56,17 @@ def sanitize_creator_name(creator_name):
     return name if name else "Unknown"
 
 
-def generate_filename(published_time, creator_name, video_id):
-    """Generate filename in format: MMDDYYYY_CreatorName_VideoID.txt"""
+def generate_filename(published_time, video_id, video_title=None):
+    """Generate filename: MMDDYYYY_VideoID[_Video-Title].txt"""
     date_str = format_date(published_time)
-    creator_str = sanitize_creator_name(creator_name)
-    return f"{date_str}_{creator_str}_{video_id}.txt"
+
+    if video_title:
+        reserved = len(date_str) + 1 + len(video_id) + 1 + len(".txt")
+        max_title_len = max(10, 200 - reserved)
+        title_str = sanitize_title(video_title, max_length=max_title_len)
+        return f"{date_str}_{video_id}_{title_str}.txt"
+
+    return f"{date_str}_{video_id}.txt"
 
 
 def download_transcript_via_supadata(video_id, output_filename, native_lang=None):
@@ -237,7 +255,7 @@ def main():
 
             # Check if already downloaded via Supadata
             if video.get('downloaded_via_supadata', False):
-                filename = generate_filename(published_time, creator_name, video_id)
+                filename = generate_filename(published_time, video_id, video_title)
                 output_path = os.path.join(output_dir, filename)
                 if os.path.exists(output_path):
                     print(f"✓ Already downloaded: {video_title}")
@@ -247,7 +265,7 @@ def main():
             total_videos += 1
 
             # Generate filename
-            filename = generate_filename(published_time, creator_name, video_id)
+            filename = generate_filename(published_time, video_id, video_title)
             output_path = os.path.join(output_dir, filename)
 
             # Download transcript using Supadata

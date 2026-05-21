@@ -134,6 +134,26 @@ class TestTitleSanitization:
     def test_sanitize_title_chinese(self):
         assert sanitize_title("用最啰嗦的方式去火星") == "用最啰嗦的方式去火星"
 
+    def test_sanitize_title_cjk_punctuation(self):
+        """Full-width CJK punctuation becomes dashes, not left raw in the filename."""
+        result = sanitize_title("你跟AI高手，prompt水平差距有多大？（工作日常，非表演）")
+        assert result == "你跟AI高手-prompt水平差距有多大-工作日常-非表演"
+
+    def test_sanitize_title_long_title_truncated_before_sanitization(self):
+        """Raw title longer than 30 chars is truncated before sanitization."""
+        long = "AI 光互连：被 GPU 光芒掩盖的下一个万亿赛道？站在光里的美股｜万字解读光互连 Photonics 产业链｜AXTI｜SOI"
+        result = sanitize_title(long)
+        # Source is truncated to 30 chars first, so result must be short
+        assert len(result) <= 30
+        # Should start with the sanitized first 30 chars of the raw title
+        assert result.startswith("AI-光互连")
+
+    def test_sanitize_title_cjk_brackets_and_quotes(self):
+        assert sanitize_title("标题【重要】：内容") == "标题-重要-内容"
+
+    def test_sanitize_title_cjk_ellipsis_and_middot(self):
+        assert sanitize_title("Part1…Part2·Part3") == "Part1-Part2-Part3"
+
 
 class TestFilenameGeneration:
     """Tests for filename generation."""

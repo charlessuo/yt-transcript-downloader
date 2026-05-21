@@ -32,10 +32,23 @@ def format_date(published_time):
 
 
 def sanitize_title(title, max_length=None):
-    """Sanitize video title for use in a filename, with dashes as word separators."""
+    """Sanitize video title for use in a filename, with dashes as word separators.
+
+    Whitespace and CJK/Unicode punctuation that acts as a word boundary are
+    converted to dashes; remaining invalid filename characters are stripped.
+    """
     t = title.strip()
-    t = t.replace(" ", "-")
-    t = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', t)
+    # Truncate raw title before sanitization so filenames stay manageable.
+    if len(t) > 30:
+        t = t[:30]
+    # Convert whitespace and CJK/Unicode word-boundary punctuation to dashes.
+    t = re.sub(
+        r'[\s，。、；…·—！？：（）【】『』「」""''《》〈〉～｜]+',
+        '-', t,
+    )
+    # Strip remaining invalid filename characters (ASCII + full-width variants).
+    t = re.sub(r'[<>:"/\\|?*\x00-\x1f＜＞：＂／＼｜？＊！]', '', t)
+    # Normalize dashes.
     t = re.sub(r'-+', '-', t)
     t = t.strip('-')
     if max_length and len(t) > max_length:
